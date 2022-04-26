@@ -188,6 +188,25 @@ sky.meshContainer.position.y = -600;
 scene.add(sky.meshContainer);
 
 // The Airplane
+function Airplane() {
+  this.meshContainer = new THREE.Object3D();
+
+  // Cabin
+  const geometryCockpit = new THREE.BoxGeometry(60, 50, 50, 1, 1, 1);
+  const materialCockpit = new THREE.MeshPhongMaterial({
+    color: colors.red,
+    shading: THREE.FlatShading,
+  });
+  const cockpit = new THREE.Mesh(geometryCockpit, materialCockpit);
+  cockpit.castShadow = true;
+  cockpit.receiveShadow = true;
+  this.meshContainer.add(cockpit);
+}
+
+const airplane = new Airplane();
+airplane.meshContainer.scale.set(0.25, 0.25, 0.25);
+airplane.meshContainer.position.y = 100;
+scene.add(airplane.meshContainer);
 
 /**
  * Renderer

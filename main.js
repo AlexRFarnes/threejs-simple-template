@@ -2,12 +2,30 @@ import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import * as dat from "lil-gui";
+import { Color } from "three";
+
+/**
+ * Mouse move
+ */
+document.addEventListener("mousemove", handleMouseMove);
+
+const mousePos = {
+  x: 0,
+  y: 0,
+};
+
+function handleMouseMove(e) {
+  // here we are converting the mouse position value received
+  // to a normalized value varying between -1 and 1;
+  mousePos.x = (e.clientX / sizes.width) * 2 - 1;
+  mousePos.y = 1 - (e.clientY / sizes.height) * 2; // Inverse the formula for the vertical axis (turn up to positive)
+}
 
 /**
  * Base
  */
 // Colors
-const colors = {
+const Colors = {
   red: 0xf25346,
   white: 0xd8d0d1,
   brown: 0x59332e,
@@ -25,7 +43,7 @@ const canvas = document.querySelector("canvas.webgl");
 const scene = new THREE.Scene();
 // Add a fog effect to the scene; same color as the
 // background color used in the style sheet
-scene.fog = new THREE.Fog(0xf7d9aa, 100, 950);
+// scene.fog = new THREE.Fog(0xf7d9aa, 100, 950);
 
 /**
  * Lights
@@ -52,6 +70,14 @@ sun.shadow.camera.top = 400;
 sun.shadow.camera.bottom = -400;
 sun.shadow.camera.near = 1;
 sun.shadow.camera.far = 1000;
+
+// define the resolution of the shadow; the higher the better,
+// but also the more expensive and less performant
+sun.shadow.mapSize.set(2048, 2048);
+
+const sunLightcameraHelper = new THREE.CameraHelper(sun.shadow.camera);
+sunLightcameraHelper.visible = false;
+scene.add(sunLightcameraHelper);
 // Define the resolution of the shadow; the higher the better, but also the more expensive and less performant
 
 scene.add(sun);
@@ -83,7 +109,7 @@ window.addEventListener("resize", () => {
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(
-  60,
+  75,
   sizes.width / sizes.height,
   1,
   10000
@@ -105,13 +131,13 @@ const seaGeometry = new THREE.CylinderGeometry(600, 600, 800, 40, 10); // radius
 
 // rotate the geometry on the x axis
 // seaGeometry.rotateX(-Math.PI * 0.5);
-seaGeometry.applyMatrix(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+seaGeometry.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
 
 const seaMaterial = new THREE.MeshPhongMaterial({
-  color: colors.blue,
+  color: Colors.blue,
   transparent: true,
   opacity: 0.6,
-  shading: THREE.FlatShading,
+  flatShading: true,
 });
 
 const sea = new THREE.Mesh(seaGeometry, seaMaterial);
@@ -121,14 +147,15 @@ scene.add(sea);
 
 // Cloud
 function Cloud() {
-  this.meshContainer = new THREE.Object3D();
+  this.mesh = new THREE.Object3D();
   const geometry = new THREE.BoxGeometry(20, 20, 20);
   const material = new THREE.MeshPhongMaterial({
-    color: colors.white,
+    color: Colors.white,
   });
 
   // duplicate the geometry a random number of times
   const nBlocks = 3 + Math.floor(Math.random() * 3);
+
   for (let i = 0; i < nBlocks; i++) {
     const cloudPiece = new THREE.Mesh(geometry, material);
     // set the position and the rotation of each cube randomly
@@ -137,24 +164,26 @@ function Cloud() {
     cloudPiece.position.z = Math.random() * 10;
     cloudPiece.rotation.z = Math.random() * Math.PI * 2;
     cloudPiece.rotation.y = Math.random() * Math.PI * 2;
+
     const scale = 0.1 + Math.random() * 0.9;
     cloudPiece.scale.set(scale, scale, scale);
 
     // allow each cube to cast and to receive shadows
     cloudPiece.castShadow = true;
     cloudPiece.receiveShadow = true;
-    this.meshContainer.add(cloudPiece);
+    this.mesh.add(cloudPiece);
   }
 }
 
 // Sky
 function Sky() {
-  this.meshContainer = new THREE.Object3D();
+  this.mesh = new THREE.Object3D();
 
   this.nClouds = 20;
 
   // To distribute the clouds consistently,
   // we need to place them according to a uniform angle
+  // Math.PI * 2 = 360deg
   const stepAngle = (Math.PI * 2) / this.nClouds;
 
   for (let i = 0; i < this.nClouds; i++) {
@@ -168,45 +197,108 @@ function Sky() {
     // Trigonometry!!! I hope you remember what you've learned in Math :)
     // in case you don't:
     // we are simply converting polar coordinates (angle, distance) into Cartesian coordinates (x, y)
-    cloud.meshContainer.position.y = Math.sin(a) * h;
-    cloud.meshContainer.position.x = Math.cos(a) * h;
+    cloud.mesh.position.y = Math.sin(a) * h;
+    cloud.mesh.position.x = Math.cos(a) * h;
 
-    cloud.meshContainer.rotation.z = a + Math.PI / 2;
+    cloud.mesh.rotation.z = a + Math.PI / 2;
 
     // for a better result, we position the clouds
     // at random depths inside of the scene
-    cloud.meshContainer.position.z = -400 - Math.random() * 400;
+    cloud.mesh.position.z = -400 - Math.random() * 400;
 
     const scale = 1 + Math.random() * 2;
-    cloud.meshContainer.scale.set(scale, scale, scale);
+    cloud.mesh.scale.set(scale, scale, scale);
 
-    this.meshContainer.add(cloud.meshContainer);
+    this.mesh.add(cloud.mesh);
   }
 }
 const sky = new Sky();
-sky.meshContainer.position.y = -600;
-scene.add(sky.meshContainer);
+sky.mesh.position.y = -600;
+scene.add(sky.mesh);
 
 // The Airplane
 function Airplane() {
-  this.meshContainer = new THREE.Object3D();
+  this.mesh = new THREE.Object3D();
 
   // Cabin
   const geometryCockpit = new THREE.BoxGeometry(60, 50, 50, 1, 1, 1);
   const materialCockpit = new THREE.MeshPhongMaterial({
-    color: colors.red,
-    shading: THREE.FlatShading,
+    // wireframe: true,
+    color: Colors.red,
+    flatShading: true,
   });
   const cockpit = new THREE.Mesh(geometryCockpit, materialCockpit);
   cockpit.castShadow = true;
   cockpit.receiveShadow = true;
-  this.meshContainer.add(cockpit);
+  geometryCockpit.attributes.position.needsUpdate = true;
+  this.mesh.add(cockpit);
+
+  // Engine
+  const geometryEngine = new THREE.BoxGeometry(20, 50, 50, 1, 1, 1);
+  const materialEngine = new THREE.MeshPhongMaterial({
+    color: Color.white,
+    flatShading: true,
+  });
+  const engine = new THREE.Mesh(geometryEngine, materialEngine);
+  engine.position.x = 40;
+  engine.castShadow = true;
+  engine.receiveShadow = true;
+  this.mesh.add(engine);
+
+  // Tail
+  const geometryTail = new THREE.BoxGeometry(15, 20, 5, 1, 1, 1);
+  const materialTail = new THREE.MeshPhongMaterial({
+    color: Color.red,
+    flatShading: true,
+  });
+  const tailPlane = new THREE.Mesh(geometryTail, materialTail);
+  tailPlane.position.set(-35, 25, 0);
+  tailPlane.castShadow = true;
+  tailPlane.receiveShadow = true;
+  this.mesh.add(tailPlane);
+
+  // Wing
+  const geometryWing = new THREE.BoxGeometry(40, 8, 150, 1, 1, 1);
+  const materialWing = new THREE.MeshPhongMaterial({
+    color: Color.red,
+    flatShading: true,
+  });
+  const sideWing = new THREE.Mesh(geometryWing, materialWing);
+  sideWing.castShadow = true;
+  sideWing.receiveShadow = true;
+  this.mesh.add(sideWing);
+
+  // Propeller
+  const geometryPropeller = new THREE.BoxGeometry(20, 10, 10, 1, 1, 1);
+  const materialPropeller = new THREE.MeshPhongMaterial({
+    color: Color.brownDark,
+    flatShading: true,
+  });
+  this.propeller = new THREE.Mesh(geometryPropeller, materialPropeller);
+  this.propeller.castShadow = true;
+  this.propeller.receiveShadow = true;
+  this.propeller.position.set(50, 0, 0);
+  this.mesh.add(this.propeller);
+
+  // Blades
+  const geometryBlades = new THREE.BoxGeometry(1, 100, 20, 1, 1, 1);
+  const materialBlades = new THREE.MeshPhongMaterial({
+    color: Color.brownDark,
+    flatShading: true,
+  });
+  const blade = new THREE.Mesh(geometryBlades, materialBlades);
+  blade.position.set(8, 0, 0);
+  blade.castShadow = true;
+  blade.receiveShadow = true;
+  this.propeller.add(blade);
 }
 
 const airplane = new Airplane();
-airplane.meshContainer.scale.set(0.25, 0.25, 0.25);
-airplane.meshContainer.position.y = 100;
-scene.add(airplane.meshContainer);
+airplane.mesh.scale.set(0.25, 0.25, 0.25);
+airplane.mesh.position.y = 100;
+scene.add(airplane.mesh);
+
+// Pilot
 
 /**
  * Renderer
@@ -220,6 +312,19 @@ renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 
+// Update plane function
+function updatePlane(elapsedTime) {
+  // let's move the airplane between -100 and 100 on the horizontal axis,
+  // and between 25 and 175 on the vertical axis,
+  // depending on the mouse position which ranges between -1 and 1 on both axes;
+  const targetX = normalize(mousePos.x, -1, 1, -100, 100);
+  const targetY = normalize(mousePos.y, -1, 1, 25, 130);
+
+  airplane.mesh.position.y = targetY;
+  airplane.mesh.position.x = targetX;
+  airplane.propeller.rotation.x = elapsedTime * 50;
+}
+
 /**
  * Animate
  */
@@ -229,6 +334,9 @@ const tick = () => {
   const elapsedTime = clock.getElapsedTime();
 
   // Update objects
+  updatePlane(elapsedTime);
+  sea.rotation.z += 0.005;
+  sky.mesh.rotation.z += 0.01;
 
   // Update controls
   controls.update();
@@ -241,3 +349,12 @@ const tick = () => {
 };
 
 tick();
+
+function normalize(value, vmin, vmax, tmin, tmax) {
+  const nv = Math.max(Math.min(value, vmax), vmin);
+  const dv = vmax - vmin;
+  const pc = (nv - vmin) / dv;
+  const dt = tmax - tmin;
+  const tv = tmin + pc * dt;
+  return tv;
+}

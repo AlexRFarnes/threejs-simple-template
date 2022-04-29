@@ -43,7 +43,7 @@ const canvas = document.querySelector("canvas.webgl");
 const scene = new THREE.Scene();
 // Add a fog effect to the scene; same color as the
 // background color used in the style sheet
-// scene.fog = new THREE.Fog(0xf7d9aa, 100, 950);
+scene.fog = new THREE.Fog(0xf7d9aa, 100, 950);
 
 /**
  * Lights
@@ -81,6 +81,10 @@ scene.add(sunLightcameraHelper);
 // Define the resolution of the shadow; the higher the better, but also the more expensive and less performant
 
 scene.add(sun);
+
+// an ambient light modifies the global color of a scene and makes the shadows softer
+const ambientLight = new THREE.AmbientLight(0xdc8874, 0.5);
+scene.add(ambientLight);
 
 /**
  * Sizes
@@ -298,8 +302,6 @@ airplane.mesh.scale.set(0.25, 0.25, 0.25);
 airplane.mesh.position.y = 100;
 scene.add(airplane.mesh);
 
-// Pilot
-
 /**
  * Renderer
  */
@@ -317,11 +319,17 @@ function updatePlane(elapsedTime) {
   // let's move the airplane between -100 and 100 on the horizontal axis,
   // and between 25 and 175 on the vertical axis,
   // depending on the mouse position which ranges between -1 and 1 on both axes;
-  const targetX = normalize(mousePos.x, -1, 1, -100, 100);
-  const targetY = normalize(mousePos.y, -1, 1, 25, 130);
+  const targetX = normalize(mousePos.x, -0.75, 0.75, -100, 100);
+  const targetY = normalize(mousePos.y, -0.75, 0.75, 25, 130);
 
-  airplane.mesh.position.y = targetY;
-  airplane.mesh.position.x = targetX;
+  // Move the plane at each frame by adding a fraction of the remaining distance
+  airplane.mesh.position.y += (targetY - airplane.mesh.position.y) * 0.1;
+  // airplane.mesh.position.x = targetX;
+
+  // Rotate the plane proportionally to the remaining distance
+  airplane.mesh.rotation.z = (targetY - airplane.mesh.position.y) * 0.0128;
+  airplane.mesh.rotation.x = (airplane.mesh.position.y - targetY) * 0.0064;
+
   airplane.propeller.rotation.x = elapsedTime * 50;
 }
 
